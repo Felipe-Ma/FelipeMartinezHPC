@@ -1,0 +1,9 @@
+---
+- name: Gather facrs about proxmox hosts
+  host: proxmox
+  gather_facts: yes
+
+  tasks: 
+    - name: Display gathered gather facts
+      debug:
+        var: ansible_facts
