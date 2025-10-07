@@ -1,0 +1,15 @@
+---
+- name: Copy /etc/hosts from the client node to Slurm nodes
+  hosts: lustre
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Copy /etc/hosts file from this (client) node
+      ansible.builtin.copy:
+        src: /etc/hosts
+        dest: /etc/hosts
+        owner: root
+        group: root
+        mode: '0644'
+        backup: true
