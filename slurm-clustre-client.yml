@@ -1,0 +1,72 @@
+---
+- name: Install Lustre client and mount on Slurm nodes (Rocky 9.6)
+  hosts: slurm
+  become: true
+  gather_facts: false
+
+  vars:
+    lustre_repo_name: "lustre-client"
+    lustre_repo_baseurl: "https://downloads.whamcloud.com/public/lustre/latest-release/el9.6/client/"
+    mount_target: "10.74.40.186@tcp:/lustrefs"
+    mount_point: "/scratch"
+    mount_opts: "defaults,_netdev,flock"
+
+  tasks:
+    - name: Configure Whamcloud Lustre client repo
+      ansible.builtin.yum_repository:
+        name: "{{ lustre_repo_name }}"
+        description: "Lustre Client Repository"
+        baseurl: "{{ lustre_repo_baseurl }}"
+        enabled: true
+        gpgcheck: false
+
+    - name: dnf clean all
+      ansible.builtin.command: dnf clean all
+      changed_when: false
+
+    - name: dnf makecache
+      ansible.builtin.command: dnf -y makecache
+      changed_when: false
+
+    - name: Install Lustre client packages
+      ansible.builtin.package:
+        name:
+          - kmod-lustre-client
+          - lustre-client
+        state: present
+
+    # These two are optional because fstab will autoload modules,
+    # but included since you wanted explicit modprobe.
+    - name: modprobe lustre
+      ansible.builtin.command: /usr/sbin/modprobe lustre
+      register: modprobe_lustre
+      changed_when: false   # don't report change each run
+
+    - name: modprobe lnet
+      ansible.builtin.command: /usr/sbin/modprobe lnet
+      register: modprobe_lnet
+      changed_when: false
+
+    - name: Create mount point
+      ansible.builtin.file:
+        path: "{{ mount_point }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Ensure Lustre filesystem is in /etc/fstab
+      ansible.builtin.mount:
+        path: "{{ mount_point }}"
+        src: "{{ mount_target }}"
+        fstype: lustre
+        opts: "{{ mount_opts }}"
+        state: present
+
+    - name: Mount Lustre filesystem now
+      ansible.builtin.mount:
+        path: "{{ mount_point }}"
+        src: "{{ mount_target }}"
+        fstype: lustre
+        opts: "{{ mount_opts }}"
+        state: mounted
