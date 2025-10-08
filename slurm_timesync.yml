@@ -1,0 +1,91 @@
+---
+- name: Configure time on Slurm nodes
+  hosts: slurm
+  become: true
+  vars:
+    pt_timezone: "America/Los_Angeles"
+    ntp_servers:
+      - "ntp.elements.local"
+
+  pre_tasks:
+    - name: Gather minimal facts (we just need ansible_distribution and such)
+      setup:
+        gather_subset:
+          - min
+
+  tasks:
+    - name: Ensure chrony is installed
+      ansible.builtin.package:
+        name: chrony
+        state: present
+
+    - name: Disable systemd-timesyncd if present (avoid conflicts)
+      ansible.builtin.service:
+        name: systemd-timesyncd
+        state: stopped
+        enabled: false
+      ignore_errors: true
+
+    - name: Get current timezone
+      ansible.builtin.command: timedatectl show -p Timezone --value
+      register: current_tz
+      changed_when: false
+
+    - name: Set timezone to {{ pt_timezone }}
+      ansible.builtin.command: timedatectl set-timezone {{ pt_timezone }}
+      when: current_tz.stdout != pt_timezone
+
+    - name: Ensure chrony log dir exists
+      ansible.builtin.file:
+        path: /var/log/chrony
+        state: directory
+        mode: "0755"
+
+    - name: Configure /etc/chrony.conf
+      ansible.builtin.copy:
+        dest: /etc/chrony.conf
+        owner: root
+        group: root
+        mode: "0644"
+        backup: true
+        content: |
+          # Managed by Ansible
+          {% for s in ntp_servers %}
+          server {{ s }} iburst
+          {% endfor %}
+
+          driftfile /var/lib/chrony/drift
+          makestep 1.0 3
+          logdir /var/log/chrony
+
+    - name: Enable and restart chronyd
+      ansible.builtin.service:
+        name: chronyd
+        state: restarted
+        enabled: true
+
+    - name: Wait a few seconds for first sync attempt
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Show chrony sources (for visibility)
+      ansible.builtin.command: chronyc sources -v
+      register: chrony_sources
+      changed_when: false
+
+    - name: Show chrony tracking (for visibility)
+      ansible.builtin.command: chronyc tracking
+      register: chrony_tracking
+      changed_when: false
+
+    - name: Show timedatectl status (for visibility)
+      ansible.builtin.command: timedatectl
+      register: td_status
+      changed_when: false
+
+    - name: Print sync diagnostics
+      ansible.builtin.debug:
+        msg:
+          - "chronyc sources -v:\n{{ chrony_sources.stdout }}"
+          - "chronyc tracking:\n{{ chrony_tracking.stdout }}"
+          - "timedatectl:\n{{ td_status.stdout }}"
