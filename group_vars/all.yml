@@ -1,0 +1,26 @@
+# group_vars/all.yml
+# Global variables shared by playbooks
+
+# === New HPC user to create across the cluster ===
+hpc_user_name: engineer1
+hpc_user_uid: 12010
+hpc_user_gid: 12010
+hpc_user_shell: /bin/bash
+hpc_user_home: "/home/{{ hpc_user_name }}"
+
+# Your PUBLIC SSH key (one line). Note the escaped backslash in the comment.
+hpc_user_pubkey: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDMu7kbMfAJ0Powl+zbcOCdbWJKXkt3Va60Lozd6FMAX2HkJ6yn6+PmBZlNsoXZl5bVLpgBDJMp4K+lJq4gP7YIqZbcpOBUGJgg7CqFH8qPeKP1or0PefJbURy+lzlMOtjBuXKZpzgyrBV233a/Ezr8hFbaFzUD85ElTKzoQINV8az9DM8o2DpN3ocYZl431dsl1GxMZiinAqqEp7VM+olUy3czr4pLs9pPd+WNgmOzKF59HDKPKmNHVm7K7tjPKEPUtEw7BqpjeE0vDKLJMbKyC5EdZUQGeDL/W19N940hQ+DycZan8wmuqDFAi8V1SPCOmaheLMSWtbVuTcGR4kEjdsFY6pCSv/6EC5fiWhN3slCo8pn2bCfYcjickjZypp7EHF45PBnMsfnhUmjVKqJsipxRlU87Bp9uuF/oIu5xiLOmZCoIdGRbHnWz6qA/zunTEfKH9ilPjXZHnRKDEcwCgp8Xt2fiPtK5NweHBvyoLzOxRWp+2C5XapvDwaDk3t8= root@automation"
+
+# If you prefer to skip installing an SSH key (and set a password later), set this to "".
+# hpc_user_pubkey: ""
+
+# === Slurm accounting (slurmdbd) ===
+# Account the user will belong to in SlurmDBD.
+hpc_account_name: eng
+
+# Path to sacctmgr on the controller (adjust if different)
+sacctmgr_bin: /usr/bin/sacctmgr
+
+# === Safety toggles for playbooks ===
+# Set true to ensure .ssh/authorized_keys is created when a pubkey is provided.
+manage_ssh_authorized_keys: true
