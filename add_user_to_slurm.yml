@@ -1,0 +1,23 @@
+- name: Register account and user in Slurm accounting
+  hosts: controller
+  become: yes
+  gather_facts: no
+
+  tasks:
+    - name: Ensure Slurm account exists
+      shell: "{{ sacctmgr_bin }} -n -P list account where name={{ hpc_account_name }} | wc -l"
+      register: acct_exists
+      changed_when: false
+
+    - name: Create account if missing
+      command: "{{ sacctmgr_bin }} -i add account {{ hpc_account_name }}"
+      when: (acct_exists.stdout | int) == 0
+
+    - name: Check if user is already present in accounting
+      shell: "{{ sacctmgr_bin }} -n -P list user where name={{ hpc_user_name }} | wc -l"
+      register: user_exists
+      changed_when: false
+
+    - name: Add user to account if missing
+      command: "{{ sacctmgr_bin }} -i add user {{ hpc_user_name }} account={{ hpc_account_name }}"
+      when: (user_exists.stdout | int) == 0

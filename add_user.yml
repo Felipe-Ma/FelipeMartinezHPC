@@ -1,0 +1,50 @@
+- name: Create HPC user across Slurm nodes
+  hosts: all_nodes
+  become: yes
+  gather_facts: no
+
+  vars:
+    _home: "{{ hpc_user_home | default('/home/' ~ hpc_user_name) }}"
+
+  tasks:
+    - name: Ensure primary group exists with fixed GID
+      group:
+        name: "{{ hpc_user_name }}"
+        gid: "{{ hpc_user_gid }}"
+        state: present
+
+    - name: Ensure user exists with fixed UID/GID and home
+      user:
+        name: "{{ hpc_user_name }}"
+        uid: "{{ hpc_user_uid }}"
+        group: "{{ hpc_user_name }}"
+        shell: "{{ hpc_user_shell }}"
+        home: "{{ _home }}"
+        create_home: yes
+        state: present
+
+    - name: Create .ssh directory (only if a pubkey is provided)
+      file:
+        path: "{{ _home }}/.ssh"
+        state: directory
+        owner: "{{ hpc_user_name }}"
+        group: "{{ hpc_user_name }}"
+        mode: '0700'
+      when: (hpc_user_pubkey | default('')) | length > 0
+
+    - name: Install authorized_keys for the user (optional)
+      authorized_key:
+        user: "{{ hpc_user_name }}"
+        key: "{{ hpc_user_pubkey }}"
+        manage_dir: false
+        path: "{{ _home }}/.ssh/authorized_keys"
+        state: present
+      when: (hpc_user_pubkey | default('')) | length > 0
+
+    - name: Ensure home ownership (defensive)
+      file:
+        path: "{{ _home }}"
+        state: directory
+        owner: "{{ hpc_user_name }}"
+        group: "{{ hpc_user_name }}"
+        recurse: yes
