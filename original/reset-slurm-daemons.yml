@@ -1,0 +1,86 @@
+---
+# reset-slurm-daemons.yml
+# Order:
+# 1) Restart Munge everywhere (auth)
+# 2) Restart slurmd on compute nodes
+# 3) Restart slurmctld on controller + reconfigure
+# 4) From controller, try to RESUME compute nodes and show status
+
+- name: "1) Restart Munge on all nodes"
+  hosts: all_nodes
+  gather_facts: false
+  tasks:
+    - name: "Ensure munge is enabled and restarted"
+      service:
+        name: munge
+        state: restarted
+        enabled: true
+
+    - name: "Verify munge is active"
+      command: systemctl is-active munge
+      register: munge_status
+      changed_when: false
+      failed_when: munge_status.stdout.strip() != "active"
+
+- name: "2) Restart slurmd on compute nodes"
+  hosts: compute
+  gather_facts: false
+  tasks:
+    - name: "Ensure slurmd is enabled and restarted"
+      service:
+        name: slurmd
+        state: restarted
+        enabled: true
+
+    - name: "Tail slurmd log (last 20 lines) for quick diagnostics"
+      shell: |
+        tail -n 20 /var/log/slurm/slurmd.log || journalctl -u slurmd -n 20 --no-pager
+      register: slurmd_log
+      changed_when: false
+      failed_when: false
+
+    - debug:
+        var: slurmd_log.stdout_lines
+
+- name: "3) Restart slurmctld on controller & reconfigure"
+  hosts: controller
+  gather_facts: false
+  tasks:
+    - name: "Ensure slurmctld is enabled and restarted"
+      service:
+        name: slurmctld
+        state: restarted
+        enabled: true
+
+    - name: "Reconfigure controller"
+      command: scontrol reconfigure
+
+    - name: "Quick controller log peek (last 30 lines)"
+      shell: |
+        tail -n 30 /var/log/slurm/slurmctld.log || journalctl -u slurmctld -n 30 --no-pager
+      register: ctld_log
+      changed_when: false
+      failed_when: false
+
+    - debug:
+        var: ctld_log.stdout_lines
+
+- name: "4) From controller: RESUME compute nodes and show status"
+  hosts: controller
+  gather_facts: false
+  vars:
+    compute_nodes_csv: "{{ groups['compute'] | join(',') }}"
+  tasks:
+    - name: "Clear DOWN/DRAIN and RESUME computes"
+      shell: |
+        scontrol update NodeName={{ compute_nodes_csv }} State=RESUME Reason="daemon reset" || true
+        scontrol update NodeName={{ compute_nodes_csv }} Reason=""
+      changed_when: false
+
+    - name: "Show node states"
+      command: sinfo -N -l
+      register: sinfo_out
+      changed_when: false
+
+    - debug:
+        var: sinfo_out.stdout_lines

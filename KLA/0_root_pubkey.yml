@@ -1,0 +1,24 @@
+---
+- name: Install root SSH pubkey for passwordless login
+  hosts: all
+  gather_facts: false
+
+  vars:
+    root_pubkey: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDMu7kbMfAJ0Powl+zbcOCdbWJKXkt3Va60Lozd6FMAX2HkJ6yn6+PmBZlNsoXZl5bVLpgBDJMp4K+lJq4gP7YIqZbcpOBUGJgg7CqFH8qPeKP1or0PefJbURy+lzlMOtjBuXKZpzgyrBV233a/Ezr8hFbaFzUD85ElTKzoQINV8az9DM8o2DpN3ocYZl431dsl1GxMZiinAqqEp7VM+olUy3czr4pLs9pPd+WNgmOzKF59HDKPKmNHVm7K7tjPKEPUtEw7BqpjeE0vDKLJMbKyC5EdZUQGeDL/W19N940hQ+DycZan8wmuqDFAi8V1SPCOmaheLMSWtbVuTcGR4kEjdsFY6pCSv/6EC5fiWhN3slCo8pn2bCfYcjickjZypp7EHF45PBnMsfnhUmjVKqJsipxRlU87Bp9uuF/oIu5xiLOmZCoIdGRbHnWz6qA/zunTEfKH9ilPjXZHnRKDEcwCgp8Xt2fiPtK5NweHBvyoLzOxRWp+2C5XapvDwaDk3t8= root@automation"
+
+  tasks:
+    - name: Ensure /root/.ssh exists with correct perms
+      ansible.builtin.file:
+        path: /root/.ssh
+        state: directory
+        mode: "0700"
+        owner: root
+        group: root
+
+    - name: Add/ensure pubkey in /root/.ssh/authorized_keys
+      ansible.builtin.authorized_key:
+        user: root
+        key: "{{ root_pubkey }}"
+        state: present
+        manage_dir: false  # we created dir explicitly
+        path: /root/.ssh/authorized_keys

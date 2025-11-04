@@ -1,0 +1,47 @@
+---
+# sync-slurm-conf.yml
+
+# 1) Grab slurm.conf from the controller
+- name: Read slurm.conf from controller
+  hosts: controller
+  gather_facts: false
+  tasks:
+    - name: Slurp /etc/slurm/slurm.conf from controller
+      slurp:
+        src: /etc/slurm/slurm.conf
+      register: slurm_conf_raw
+
+    - name: Expose slurm.conf content for other plays
+      set_fact:
+        slurm_conf_content: "{{ slurm_conf_raw.content | b64decode }}"
+
+# 2) Copy slurm.conf to compute nodes and restart slurmd if changed
+- name: Distribute slurm.conf to compute nodes
+  hosts: compute
+  gather_facts: false
+  vars:
+    slurm_conf_content: "{{ hostvars['controller']['slurm_conf_content'] }}"
+    slurm_conf_path: /etc/slurm/slurm.conf
+  tasks:
+    - name: Ensure /etc/slurm exists
+      file:
+        path: /etc/slurm
+        state: directory
+        mode: "0755"
+
+    - name: Copy slurm.conf from controller to compute
+      copy:
+        dest: "{{ slurm_conf_path }}"
+        content: "{{ slurm_conf_content }}"
+        owner: root
+        group: root
+        mode: "0644"
+        backup: true
+      notify: Restart slurmd
+
+  handlers:
+    - name: Restart slurmd
+      service:
+        name: slurmd
+        state: restarted
+        enabled: true

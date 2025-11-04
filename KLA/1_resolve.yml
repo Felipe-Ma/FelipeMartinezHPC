@@ -1,0 +1,22 @@
+---
+- name: Sync resolv.conf from controller to workers
+  hosts: workers
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Read resolv.conf from controller (once)
+      ansible.builtin.slurp:
+        src: /etc/resolv.conf
+      register: controller_resolv
+      delegate_to: controller
+      run_once: true
+
+  tasks:
+    - name: Push resolv.conf to workers
+      ansible.builtin.copy:
+        content: "{{ controller_resolv.content | b64decode }}"
+        dest: /etc/resolv.conf
+        owner: root
+        group: root
+        mode: "0644"

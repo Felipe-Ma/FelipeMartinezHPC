@@ -1,0 +1,61 @@
+---
+- name: Enable repos and install Slurm + Munge
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    slurm_pkgs:
+      - slurm
+      - slurm-slurmd
+      - slurm-slurmctld
+      - munge
+      - munge-libs
+
+  tasks:
+    - name: Ensure dnf plugins present
+      ansible.builtin.dnf:
+        name: dnf-plugins-core
+        state: present
+
+    # --- Enable the correct extra repo (CRB on Rocky 9, Powertools on Rocky 8) ---
+    - name: Enable CRB on Rocky 9
+      ansible.builtin.command: dnf config-manager --set-enabled crb
+      register: enable_crb
+      changed_when: "'already enabled' not in enable_crb.stdout | default('')"
+      when:
+        - ansible_distribution == "Rocky"
+        - ansible_distribution_major_version | int == 9
+
+    - name: Enable Powertools on Rocky 8
+      ansible.builtin.command: dnf config-manager --set-enabled powertools
+      register: enable_powertools
+      changed_when: "'already enabled' not in enable_powertools.stdout | default('')"
+      when:
+        - ansible_distribution == "Rocky"
+        - ansible_distribution_major_version | int == 8
+
+    # --- Add EPEL (required for Slurm on RHEL/Rocky) ---
+    - name: Install EPEL release
+      ansible.builtin.dnf:
+        name: epel-release
+        state: present
+
+    # Optional on EL9: some packages come from EPEL Next. If not available, no fail.
+    - name: Install EPEL Next release on EL9 (best-effort)
+      ansible.builtin.dnf:
+        name: epel-next-release
+        state: present
+      register: epel_next_result
+      failed_when: false
+      when:
+        - ansible_distribution_major_version | int >= 9
+
+    - name: Refresh DNF metadata
+      ansible.builtin.dnf:
+        update_cache: true
+
+    - name: Install Slurm and Munge
+      ansible.builtin.dnf:
+        name: "{{ slurm_pkgs }}"
+        state: present

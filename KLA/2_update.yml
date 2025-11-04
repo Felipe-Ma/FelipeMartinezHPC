@@ -1,0 +1,9 @@
+---
+- name: Run system update on all servers
+  hosts: all
+  become: true #use sudo
+  tasks:
+    - name: Update all packages
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest

@@ -1,0 +1,17 @@
+# Managed by Ansible
+DbdHost={{ controller_host }}
+DbdPort={{ slurmdbd_port }}
+SlurmUser=slurm
+
+StorageType=accounting_storage/mysql
+StorageHost={{ db_host }}
+StoragePort={{ db_port }}
+StorageUser={{ db_user }}
+StoragePass={{ db_pass }}
+StorageLoc={{ db_name }}
+
+LogFile={{ slurmdbd_log }}
+PurgeJobAfter=30days
+# Optional tuning:
+# MessageTimeout=60
+# DebugLevel=info

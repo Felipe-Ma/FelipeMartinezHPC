@@ -1,0 +1,14 @@
+---
+- name: Ensure slurm system user exists on all nodes
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Create slurm user
+      ansible.builtin.user:
+        name: slurm
+        system: true
+        shell: /sbin/nologin
+        create_home: false
+        state: present

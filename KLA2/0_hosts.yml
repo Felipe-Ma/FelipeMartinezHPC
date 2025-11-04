@@ -1,0 +1,34 @@
+---
+- name: Set hostnames and deploy /etc/hosts everywhere
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Set hostname to inventory alias (e.g., controller, worker1)
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Install /etc/hosts from template
+      ansible.builtin.template:
+        src: templates/hosts.j2
+        dest: /etc/hosts
+        owner: root
+        group: root
+        mode: "0644"
+
+    # Optional: avoid SSH reverse DNS delays
+    - name: Ensure UseDNS no in sshd_config (prevents reverse DNS stalls)
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^[#\s]*UseDNS\s+'
+        line: 'UseDNS no'
+        create: no
+        backrefs: no
+      notify: Restart sshd
+
+  handlers:
+    - name: Restart sshd
+      ansible.builtin.service:
+        name: sshd
+        state: restarted

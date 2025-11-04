@@ -1,0 +1,55 @@
+---
+- name: Install and configure OpenMPI on all cluster nodes
+  hosts: all_nodes
+  become: true
+  tasks:
+
+    - name: Install OpenMPI and dependencies
+      dnf:
+        name:
+          - openmpi
+          - openmpi-devel
+        state: present
+
+    # --- Root user environment ---
+    - name: Add OpenMPI bin/lib to root shell environment
+      lineinfile:
+        path: /root/.bashrc
+        line: "{{ item }}"
+        create: yes
+        state: present
+      loop:
+        - 'export PATH=/usr/lib64/openmpi/bin:$PATH'
+        - 'export LD_LIBRARY_PATH=/usr/lib64/openmpi/lib:$LD_LIBRARY_PATH'
+
+    # --- Engineer1 user environment ---
+    - name: Ensure engineer1 home exists
+      file:
+        path: /home/engineer1
+        state: directory
+        owner: engineer1
+        group: engineer1
+        mode: '0755'
+
+    - name: Add OpenMPI bin/lib to engineer1 shell environment
+      lineinfile:
+        path: /home/engineer1/.bashrc
+        line: "{{ item }}"
+        create: yes
+        state: present
+        owner: engineer1
+        group: engineer1
+        mode: '0644'
+      loop:
+        - 'export PATH=/usr/lib64/openmpi/bin:$PATH'
+        - 'export LD_LIBRARY_PATH=/usr/lib64/openmpi/lib:$LD_LIBRARY_PATH'
+
+    - name: Verify mpirun is available for engineer1
+      become_user: engineer1
+      shell: "source /home/engineer1/.bashrc && mpirun --version"
+      register: mpi_check
+      changed_when: false
+
+    - name: Display OpenMPI version for engineer1
+      debug:
+        var: mpi_check.stdout

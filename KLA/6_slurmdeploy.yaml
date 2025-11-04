@@ -1,0 +1,135 @@
+---
+- name: Deploy Slurm config and bring services up
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    slurm_conf_src: files/slurm.conf
+    cgroup_conf_src: files/cgroup.conf   # optional; add file if you want it pushed
+    slurm_conf_dir: /etc/slurm
+    ctl_spool: /var/spool/slurmctld
+    d_spool: /var/spool/slurmd
+    log_dir: /var/log
+    controller_group: controllers   # must match your inventory group
+
+  pre_tasks:
+    - name: Ensure slurm system user exists everywhere
+      ansible.builtin.user:
+        name: slurm
+        system: true
+        shell: /sbin/nologin
+        create_home: false
+        state: present
+
+    - name: Ensure /etc/slurm exists
+      ansible.builtin.file:
+        path: "{{ slurm_conf_dir }}"
+        state: directory
+        owner: slurm
+        group: slurm
+        mode: "0755"
+
+  tasks:
+    - name: Copy slurm.conf to all nodes
+      ansible.builtin.copy:
+        src: "{{ slurm_conf_src }}"
+        dest: "{{ slurm_conf_dir }}/slurm.conf"
+        owner: slurm
+        group: slurm
+        mode: "0644"
+      notify:
+        - Restart slurmctld
+        - Restart slurmd
+
+    - name: (Optional) Copy cgroup.conf if present
+      ansible.builtin.copy:
+        src: "{{ cgroup_conf_src }}"
+        dest: "{{ slurm_conf_dir }}/cgroup.conf"
+        owner: slurm
+        group: slurm
+        mode: "0644"
+      register: cgroup_copy
+      failed_when: false
+      changed_when: cgroup_copy is defined and cgroup_copy.dest is defined
+      notify:
+        - Restart slurmctld
+        - Restart slurmd
+
+    - name: Create controller state dir on controllers
+      ansible.builtin.file:
+        path: "{{ ctl_spool }}"
+        state: directory
+        owner: slurm
+        group: slurm
+        mode: "0755"
+      when: inventory_hostname in groups.get(controller_group, [])
+
+    - name: Create slurmd spool dir on workers
+      ansible.builtin.file:
+        path: "{{ d_spool }}"
+        state: directory
+        owner: slurm
+        group: slurm
+        mode: "0755"
+      when: inventory_hostname not in groups.get(controller_group, [])
+
+    - name: Ensure log files exist with proper ownership (controller)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: touch
+        owner: slurm
+        group: slurm
+        mode: "0644"
+      loop:
+        - "{{ log_dir }}/slurmctld.log"
+      when: inventory_hostname in groups.get(controller_group, [])
+
+    - name: Ensure slurmd log exists with proper ownership (all nodes)
+      ansible.builtin.file:
+        path: "{{ log_dir }}/slurmd.log"
+        state: touch
+        owner: slurm
+        group: slurm
+        mode: "0644"
+
+    - name: Make sure MUNGE is enabled and running (all nodes)
+      ansible.builtin.service:
+        name: munge
+        enabled: true
+        state: started
+
+    - name: Enable & start slurmctld on controllers
+      ansible.builtin.service:
+        name: slurmctld
+        enabled: true
+        state: started
+      when: inventory_hostname in groups.get(controller_group, [])
+
+    - name: Enable & start slurmd on workers
+      ansible.builtin.service:
+        name: slurmd
+        enabled: true
+        state: started
+      when: inventory_hostname not in groups.get(controller_group, [])
+
+    - name: Enable & start slurmdbd on controllers (best-effort)
+      ansible.builtin.service:
+        name: slurmdbd
+        enabled: true
+        state: started
+      when: inventory_hostname in groups.get(controller_group, [])
+      failed_when: false
+
+  handlers:
+    - name: Restart slurmctld
+      ansible.builtin.service:
+        name: slurmctld
+        state: restarted
+      when: inventory_hostname in groups.get('controllers', [])
+
+    - name: Restart slurmd
+      ansible.builtin.service:
+        name: slurmd
+        state: restarted
+      when: inventory_hostname not in groups.get('controllers', [])

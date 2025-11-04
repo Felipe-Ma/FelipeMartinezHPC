@@ -1,0 +1,9 @@
+# Managed by Ansible
+127.0.0.1   localhost localhost.localdomain
+::1         localhost localhost.localdomain
+
+{% for h in groups['all'] %}
+{% set ip = hostvars[h].ansible_host | default(h) %}
+{% set name = h %}
+{{ ip }} {{ name }}
+{% endfor %}
